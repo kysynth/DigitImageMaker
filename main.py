@@ -1,4 +1,5 @@
 from PIL import Image, ImageDraw, ImageFont
+import matplotlib.cm
 import numpy as np
 import random
 import tensorflow as tf
@@ -9,11 +10,19 @@ class DigitImageMaker:
         # TODO: for "font" mode, generated font & images can be cached to reuse
         # Setting ####
         self.font = "FE-FONT"
+        self.gaussian_noise = True
         self.min_digit_width = 10
-        self.y_perturb = 10
+        self.random_color = True
+        self.y_perturb = 5
+
 
         # Member variable ####
         self.digit_to_mnist = self._load_mnist()  # str -> [numpy.array,]
+        # random color
+        self.color_maps = ['Greys', 'Purples', 'Blues', 'Greens', 'Reds',
+          'PiYG', 'PRGn', 'BrBG', 'RdGy', 'RdBu', 'Pastel1', 'Pastel2',
+          'Paired', 'Accent', 'flag', 'prism', 'ocean', 'terrain', 'gist_stern']
+        # test
 
     def create_digit_sequence(self, number, image_width,
                               min_spacing, max_spacing,
@@ -45,12 +54,14 @@ class DigitImageMaker:
         NumPy array of the final image. (np.array)
         """
         # no padding, so padding should be done outside this function
+        if min_spacing > max_spacing:
+            raise RuntimeError("min_width > max_width is invalid.")
         n = len(number)
 
         if generation_mode == "font":
             max_digit_width = (image_width - (n - 1) * max_spacing) // n
             if max_digit_width < self.min_digit_width:
-                raise RuntimeError("len(number) * max_spacing > image_width ")
+                raise RuntimeError("image_width is too short for 'font' mode.")
 
             digit_images = [[self._digit_to_np_image(str(i),
                      "fonts/FE-FONT.TTF", max_digit_width)] for i in range(10)]
@@ -58,24 +69,38 @@ class DigitImageMaker:
                      [digit_image[0].shape[0] for digit_image in digit_images])
         elif generation_mode == "mnist-no-resize":
             # load mnist dataset
+            if image_width < (self.digit_to_mnist[0][0].shape[0]+max_spacing)*n:
+                raise RuntimeError("image_width is too short for 'mnist-no-resize' mode.")
             digit_images = self.digit_to_mnist
             image_height = 28
+        else:
+            raise RuntimeError("No such generation_mode.")
         image_height += self.y_perturb
 
-        final_image = np.zeros((image_height, image_width, 3))
+        final_image = np.zeros((image_height, image_width))
         y, x = 0, 0
         for digit in number:
             y = int(random.uniform(0, self.y_perturb))
             digit_image = random.choice(digit_images[int(digit)])
-            digit_height, digit_width, _ = digit_image.shape
-            final_image[y:y + digit_height, x:x + digit_width, :] = digit_image
+            digit_height, digit_width = digit_image.shape
+            final_image[y:y + digit_height, x:x + digit_width] = digit_image
             spacing = int(random.uniform(min_spacing, max_spacing))
             x += (digit_width + spacing)
 
-            # TODO: perturb y slightly in range (Method 2 to prevent overfitting)
         # TODO: not necessary but maybe center the digit seq since final
-        # TODO: image can have a lot of whitespace on the right
-        return final_image
+        # TODO: image can have a lot of space on the right
+
+        if self.random_color:
+            random_color = random.choice(self.color_maps)
+            cm = matplotlib.cm.get_cmap(random_color)
+            final_image = cm(final_image) * 255
+        if self.gaussian_noise:
+            final_image = final_image.astype(np.float32)
+            scale = 8 if self.random_color else 32
+            final_image += np.random.normal(0, scale, final_image.shape)
+            final_image = np.clip(final_image, 0, 255)
+
+        return np.uint8(final_image)
 
     def _load_mnist(self):
         """Load mnist from tensorflow for self.digit_to_mnist dictionary.
@@ -88,9 +113,7 @@ class DigitImageMaker:
                           7: [], 8: [], 9: []}
 
         for i in range(n):
-            # duplicate to 3 channels
-            new_xi = np.stack((x[i], x[i], x[i]), axis=-1)
-            digit_to_mnist[y[i]].append(new_xi)
+            digit_to_mnist[y[i]].append(x[i])
 
         return digit_to_mnist
 
@@ -118,17 +141,19 @@ class DigitImageMaker:
         draw = ImageDraw.Draw(im)
         draw.text((0, 0), str_digit, fill=(255, 255, 255), font=font)
         im = im.resize((output_width, height * output_width // width))
-        return np.array(im)
+        return np.squeeze(np.array(im)[:, :, 0])
 
 
 def main():
-    s = "929394"
-    mode = "font"
-    dim = DigitImageMaker()
-    res = dim.create_digit_sequence(s, 50*6+5*20, 1, 20, mode)
-    im = Image.fromarray(res.astype(np.uint8))
-
-    im.save(s + mode + ".png")
+        dim = DigitImageMaker()
+        for i in range(20):
+            print(i)
+            s = "19970315"
+            mode = "mnist-no-resize"
+            res = dim.create_digit_sequence(s, 70*len(s), 1, 30, mode)
+            im = Image.fromarray(res.astype(np.uint8))
+            print("Saving...")
+            im.save(s + mode + str(i) + ".png")
 
 
 main()
