@@ -1,159 +1,110 @@
-from PIL import Image, ImageDraw, ImageFont
-import matplotlib.cm
-import numpy as np
+from maker import DigitImageMaker
+from PIL import Image
+from tqdm import tqdm
+import argparse
+import os
+import pandas as pd
 import random
-import tensorflow as tf
-
-
-class DigitImageMaker:
-    def __init__(self):
-        # TODO: for "font" mode, generated font & images can be cached to reuse
-        # Setting ####
-        self.font = "FE-FONT"
-        self.gaussian_noise = True
-        self.min_digit_width = 10
-        self.random_color = True
-        self.y_perturb = 5
-
-
-        # Member variable ####
-        self.digit_to_mnist = self._load_mnist()  # str -> [numpy.array,]
-        # random color
-        self.color_maps = ['Greys', 'Purples', 'Blues', 'Greens', 'Reds',
-          'PiYG', 'PRGn', 'BrBG', 'RdGy', 'RdBu', 'Pastel1', 'Pastel2',
-          'Paired', 'Accent', 'flag', 'prism', 'ocean', 'terrain', 'gist_stern']
-        # test
-
-    def create_digit_sequence(self, number, image_width,
-                              min_spacing, max_spacing,
-                              generation_mode="mnist-no-resize"):
-        """A function that creates an image representing the given number, with
-        random sampling between the digits.
-
-        Generation of each digit depends on `generation_mode`:
-            "font": digit is generated from font, width depends on max_spacing
-            "mnist-no-resize": digit is sampled from MNIST, width is constant
-
-        This function does not do padding. TODO: do random padding if necessary
-
-        Parameters
-        ----------
-        number: str
-            A string representing the number, e.g. "14543"
-        image_width: int
-            The image width (in pixel).
-        min_spacing: int
-            The minimum spacing between digits (in pixel).
-        max_spacing: int
-            The maximum spacing between digits (in pixel).
-        generation_mode: str
-            The mode of generating digit.
-
-        Returns
-        ----------
-        NumPy array of the final image. (np.array)
-        """
-        # no padding, so padding should be done outside this function
-        if min_spacing > max_spacing:
-            raise RuntimeError("min_width > max_width is invalid.")
-        n = len(number)
-
-        if generation_mode == "font":
-            max_digit_width = (image_width - (n - 1) * max_spacing) // n
-            if max_digit_width < self.min_digit_width:
-                raise RuntimeError("image_width is too short for 'font' mode.")
-
-            digit_images = [[self._digit_to_np_image(str(i),
-                     "fonts/FE-FONT.TTF", max_digit_width)] for i in range(10)]
-            image_height = max(
-                     [digit_image[0].shape[0] for digit_image in digit_images])
-        elif generation_mode == "mnist-no-resize":
-            # load mnist dataset
-            if image_width < (self.digit_to_mnist[0][0].shape[0]+max_spacing)*n:
-                raise RuntimeError("image_width is too short for 'mnist-no-resize' mode.")
-            digit_images = self.digit_to_mnist
-            image_height = 28
-        else:
-            raise RuntimeError("No such generation_mode.")
-        image_height += self.y_perturb
-
-        final_image = np.zeros((image_height, image_width))
-        y, x = 0, 0
-        for digit in number:
-            y = int(random.uniform(0, self.y_perturb))
-            digit_image = random.choice(digit_images[int(digit)])
-            digit_height, digit_width = digit_image.shape
-            final_image[y:y + digit_height, x:x + digit_width] = digit_image
-            spacing = int(random.uniform(min_spacing, max_spacing))
-            x += (digit_width + spacing)
-
-        # TODO: not necessary but maybe center the digit seq since final
-        # TODO: image can have a lot of space on the right
-
-        if self.random_color:
-            random_color = random.choice(self.color_maps)
-            cm = matplotlib.cm.get_cmap(random_color)
-            final_image = cm(final_image) * 255
-        if self.gaussian_noise:
-            final_image = final_image.astype(np.float32)
-            scale = 8 if self.random_color else 32
-            final_image += np.random.normal(0, scale, final_image.shape)
-            final_image = np.clip(final_image, 0, 255)
-
-        return np.uint8(final_image)
-
-    def _load_mnist(self):
-        """Load mnist from tensorflow for self.digit_to_mnist dictionary.
-        """
-        (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
-        x = np.concatenate((x_train, x_test))
-        y = np.concatenate((y_train, y_test))
-        n = y.shape[0]
-        digit_to_mnist = {0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [],
-                          7: [], 8: [], 9: []}
-
-        for i in range(n):
-            digit_to_mnist[y[i]].append(x[i])
-
-        return digit_to_mnist
-
-    def _digit_to_np_image(self, str_digit, font_path, output_width):
-        """str -> np.array (uint8) image representing the integer using font
-
-        Parameters
-        ----------
-        str_digit: str
-            0~9 digit in string format.
-        font_path: str
-            Path of font to use.
-        output_width: int
-            The width (in pixels) of the output digit image.
-
-        Returns
-        ----------
-        Numpy array of the digit image. (np.array, dtype=uint8)
-        """
-        # *8 so font point is large enough to be scaled down later
-        font_pt = output_width * 8
-        font = ImageFont.truetype(font_path, font_pt)
-        width, height = font.getsize(str_digit)
-        im = Image.new("RGB", (width, height), (0, 0, 0))
-        draw = ImageDraw.Draw(im)
-        draw.text((0, 0), str_digit, fill=(255, 255, 255), font=font)
-        im = im.resize((output_width, height * output_width // width))
-        return np.squeeze(np.array(im)[:, :, 0])
 
 
 def main():
-        dim = DigitImageMaker()
-        for i in range(20):
-            print(i)
-            s = "19970315"
-            mode = "mnist-no-resize"
-            res = dim.create_digit_sequence(s, 70*len(s), 1, 30, mode)
-            im = Image.fromarray(res.astype(np.uint8))
-            print("Saving...")
-            im.save(s + mode + str(i) + ".png")
+    """The main part of the program that write image files according to CLI
+    arguments.
+    """
+    args = get_args()
+    if args.demo_vanilla:
+        args.generation_mode = 'mnist_no_resize'
+        args.num_image = 100
+        args.gaussian_noise = False
+        args.random_rotation = 0
+        args.random_color = False
+        args.y_perturb = 0
+    elif args.demo_hand_written:
+        args.generation_mode = 'mnist_no_resize'
+        args.num_image = 100
+        args.gaussian_noise = True
+        args.random_rotation = 10
+        args.random_color = True
+        args.y_perturb = 5
+    elif args.demo_font:
+        args.generation_mode = 'font'
+        args.num_image = 100
+        args.gaussian_noise = True
+        args.random_rotation = 10
+        args.random_color = True
+        args.y_perturb = 5
+
+    follow_cli_args(args)
+
+
+def get_args():
+    """Add arguments and return parsed arguments.
+    """
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--demo_vanilla', action='store_true', help='Demo of basic generations of hand written seq.')
+    parser.add_argument('--demo_hand_written', action='store_true', help='Demo of more randomized hand written texts.')
+    parser.add_argument('--demo_font', action='store_true', help='Demo of generating randomized font texts.')
+
+    parser.add_argument('--number', type=str, help='Digit sequence to make images of. Leave this empty for random seq.')
+    parser.add_argument('--image_width', type=int, help='Image width of the output images.')
+    parser.add_argument('--min_spacing', required=True, type=int, help='Minimum spacing between digits.')
+    parser.add_argument('--max_spacing', required=True, type=int, help='Maximum spacing between digits.')
+    parser.add_argument('--generation_mode', type=str, default='mnist_no_resize', help='Gen images via MNIST or fonts.')
+
+    parser.add_argument('--dataset_name', type=str, default='images', help='Images will be in a folder with this name.')
+    parser.add_argument('--num_image', type=int, default=1, help='Number of images to create.')
+    parser.add_argument('--gaussian_noise', action='store_true', help='Add gaussian noise to images.')
+    parser.add_argument('--min_digit_width',type=int, default=10,help='Only for `font` mode,minimum digit pixel width.')
+    parser.add_argument('--random_rotation', type=int, default=0, help='Specify max angles to rotate digit sequences.')
+    parser.add_argument('--random_color',action='store_true',help='Assign random color to images; otherwise grayscale.')
+    parser.add_argument('--y_perturb', type=int, default=0, help='Y coordinate randomization in pixels.')
+
+    # TODO: can catch arguments error like non-digits in --number
+
+    return parser.parse_args()
+
+
+def demo_hand_written():
+    """Demo usage of creating hand written digits dataset.
+    """
+
+
+def demo_font():
+    """Demo usage of creating digits with font.
+    """
+
+
+def follow_cli_args(args):
+    """Generate images as specified by CLI arguments.
+    """
+    print("Following command line arguments.")
+    print("Initializing the image maker...")
+    dim = DigitImageMaker(args)
+
+    id_label_dict = {'id': [], 'label': []}
+    os.mkdir(args.dataset_name)
+
+    for id_ in tqdm(range(args.num_image)):
+        if args.number is None:
+            number = str(random.randint(0, 9999999999))
+        else:
+            number = args.number
+        if args.image_width is None:
+            image_width = len(number) * (args.max_spacing + 28)
+        else:
+            image_width = args.image_width
+
+        image = dim.create_digit_sequence(number, image_width, args.min_spacing,
+                                          args.max_spacing,args.generation_mode)
+        im = Image.fromarray(image)
+        im.save(os.path.join(args.dataset_name, str(id_) + ".png"))
+
+        id_label_dict['id'].append(id_)
+        id_label_dict['label'].append(number)
+
+    df = pd.DataFrame(id_label_dict)
+    df.to_csv(os.path.join(args.dataset_name, "id_label.csv"), index=False)
 
 
 main()
