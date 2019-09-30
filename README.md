@@ -26,7 +26,7 @@ To test `create_digit_sequence()`directly,  run`python main.py --number=NUMBER -
 
 I have added some functionalities with OCR data augmentation in mind. More specifically, I made following extensions that are accessible by command line arguments:
 
-- `--gausian_noise` Add a Gaussian noise to the image
+- `--gaussian_noise` Add a Gaussian noise to the image
 - `--random_rotation=ANGLE` Rotate the image by angle uniformly sampled from `-ANGLE ~ +ANGLE`. Rotation can change the height of the final image but the width is as specified by `--image_width.`
 - `--random_color` Add colors to the grayscale image with randomly chosen color maps from `matplotlib`.
 - `--y_perturb=R` Add random perturbations in the range `0 ~ +R` on y-axis for each digit. This is to make up for the fact that `--min-spacing` and `--max_spacing` only deal with x-axis perturbations. 
