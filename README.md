@@ -63,7 +63,7 @@ The following are examples of other possible extensions / data augmentation tech
 - **Adjust lighting condition**
   - Human eyes can identify texts regardless of brightness.
 - **Motion Blur**
-  - It would be ideal if OCR can deal with slight motion blur, whicfgih is common when humans are taking pictures.
+  - It would be ideal if OCR can deal with slight motion blur, which is common when humans are taking pictures.
 - **Further optimize performance**
   - The code is written with correctness and cleanliness in mind. The performance can be further optimized for large-scale machine learning scenario.
 - **Better spacing sampling strategy**
