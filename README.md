@@ -1,6 +1,5 @@
 # DigitImageMaker
 
-- Skill test for Mercari Software Engineer, Machine Learning internship
 - Basic functionalities with some other extensions are implemented. I have other ideas to extend/optimize this project which is listed in a later section.
 
 ## Requirements 
